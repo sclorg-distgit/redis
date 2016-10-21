@@ -29,7 +29,7 @@
 
 Name:             %{scl_prefix}redis
 Version:          3.2.3
-Release:          1%{?dist}
+Release:          2%{?dist}
 Summary:          A persistent key-value database
 
 Group:            Applications/Databases
@@ -48,6 +48,11 @@ Source9:          %{pkg_name}-limit-init
 # Update configuration for RPM
 Patch0:           0001-redis-3.2-redis-conf.patch
 Patch1:           0002-redis-3.2-deps-library-fPIC-performance-tuning.patch
+
+# https://github.com/antirez/redis/pull/3491 - man pages
+Patch3:           %{pkg_name}-pr3491.patch
+# https://github.com/antirez/redis/pull/3494 - symlink
+Patch4:           %{pkg_name}-pr3494.patch
 
 BuildRoot:        %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:    tcl >= 8.5
@@ -103,6 +108,9 @@ Documentation: http://redis.io/documentation
 %patch0 -p1 -b .rpmconf
 %patch1 -p1 -b .pic
 
+%patch3 -p1
+%patch4 -p1 -b .pr3494
+
 # No hidden build.
 sed -i -e 's|\t@|\t|g' deps/lua/src/Makefile
 sed -i -e 's|$(QUIET_CC)||g' src/Makefile
@@ -143,9 +151,8 @@ sed -e 's:/var:%{_localstatedir}:' -i %{buildroot}%{_root_sysconfdir}/logrotate.
 sed -e 's:/var:%{_localstatedir}:' -i %{pkg_name}.conf sentinel.conf
 install -p -D -m 644 %{pkg_name}.conf %{buildroot}%{_sysconfdir}/%{pkg_name}.conf
 install -p -D -m 644 sentinel.conf    %{buildroot}%{_sysconfdir}/%{pkg_name}-sentinel.conf
-install -d -m 755 %{buildroot}%{_localstatedir}/lib/%{pkg_name}
-install -d -m 755 %{buildroot}%{_localstatedir}/log/%{pkg_name}
-install -d -m 755 %{buildroot}%{_localstatedir}/run/%{pkg_name}
+install -d -m 750 %{buildroot}%{_localstatedir}/lib/%{pkg_name}
+install -d -m 750 %{buildroot}%{_localstatedir}/log/%{pkg_name}
 
 %if %{with_systemd}
 # Install systemd unit
@@ -160,6 +167,7 @@ install -p -D -m 644 %{SOURCE8} %{buildroot}%{_root_sysconfdir}/systemd/system/%
 install -p -D -m 644 %{SOURCE8} %{buildroot}%{_root_sysconfdir}/systemd/system/%{name}-sentinel.service.d/limit.conf
 
 %else
+install -d -m 750 %{buildroot}%{_localstatedir}/run/%{pkg_name}
 sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;/redis/s:/etc:%{_sysconfdir}:' \
     %{SOURCE2} >tmp_file
 install -p -D -m 755 tmp_file   %{buildroot}%{_root_initddir}/%{name}
@@ -172,10 +180,6 @@ install -p -D -m 644 %{SOURCE9} %{buildroot}%{_root_sysconfdir}/security/limits.
 # Fix non-standard-executable-perm error
 chmod 755 %{buildroot}%{_bindir}/%{pkg_name}-*
 
-# create redis-sentinel command as described on
-# http://redis.io/topics/sentinel
-ln -sf %{pkg_name}-server %{buildroot}%{_bindir}/%{pkg_name}-sentinel
-
 # Install redis-shutdown
 sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;s:/etc:%{_sysconfdir}:' \
     %{SOURCE7} >tmp_file
@@ -183,10 +187,17 @@ install -pDm755 tmp_file %{buildroot}%{_bindir}/%{pkg_name}-shutdown
 
 rm tmp_file
 
+# Install man pages
+man=$(dirname %{buildroot}%{_mandir})
+for page in man/man?/*; do
+    install -Dpm644 $page $man/$page
+done
+ln -s redis-server.1 %{buildroot}%{_mandir}/man1/redis-sentinel.1
+ln -s redis.conf.5   %{buildroot}%{_mandir}/man5/redis-sentinel.conf.5
+
 %if 0%{?nfsmountable:1}
-install -d -m 755 %{buildroot}%{_scl_scripts}/register.content%{_localstatedir}/lib/%{pkg_name}
-install -d -m 755 %{buildroot}%{_scl_scripts}/register.content%{_localstatedir}/log/%{pkg_name}
-install -d -m 755 %{buildroot}%{_scl_scripts}/register.content%{_localstatedir}/run/%{pkg_name}
+install -d -m 750 %{buildroot}%{_scl_scripts}/register.content%{_localstatedir}/lib/%{pkg_name}
+install -d -m 750 %{buildroot}%{_scl_scripts}/register.content%{_localstatedir}/log/%{pkg_name}
 
 
 install -D -m 644 %{buildroot}%{_root_sysconfdir}/logrotate.d/%{name} \
@@ -204,6 +215,7 @@ install -p -D -m 644 %{buildroot}%{_unitdir}/%{name}-sentinel.service \
                      %{buildroot}%{_scl_scripts}/register.content%{_unitdir}/%{name}-sentinel.service
 
 %else
+install -d -m 750 %{buildroot}%{_scl_scripts}/register.content%{_localstatedir}/run/%{pkg_name}
 install -p -D -m 755 %{buildroot}%{_root_initddir}/%{name}          \
                      %{buildroot}%{_scl_scripts}/register.content%{_root_initddir}/%{name}
 install -p -D -m 755 %{buildroot}%{_root_initddir}/%{name}-sentinel \
@@ -263,12 +275,13 @@ fi
 %license COPYING
 %doc 00-RELEASENOTES BUGS CONTRIBUTING MANIFESTO README.md
 %config(noreplace) %{_root_sysconfdir}/logrotate.d/%{name}
-%attr(0644, redis, root) %config(noreplace) %{_sysconfdir}/%{pkg_name}.conf
-%attr(0644, redis, root) %config(noreplace) %{_sysconfdir}/%{pkg_name}-sentinel.conf
-%dir %attr(0755, redis, redis) %{_localstatedir}/lib/%{pkg_name}
-%dir %attr(0755, redis, redis) %{_localstatedir}/log/%{pkg_name}
-%dir %attr(0755, redis, redis) %{_localstatedir}/run/%{pkg_name}
+%attr(0640, redis, root) %config(noreplace) %{_sysconfdir}/%{pkg_name}.conf
+%attr(0640, redis, root) %config(noreplace) %{_sysconfdir}/%{pkg_name}-sentinel.conf
+%dir %attr(0750, redis, redis) %{_localstatedir}/lib/%{pkg_name}
+%dir %attr(0750, redis, redis) %{_localstatedir}/log/%{pkg_name}
 %{_bindir}/%{pkg_name}-*
+%{_mandir}/man1/%{pkg_name}*
+%{_mandir}/man5/%{pkg_name}*
 
 %if %{with_systemd}
 %{_unitdir}/%{name}.service
@@ -279,6 +292,7 @@ fi
 %config(noreplace) %{_root_sysconfdir}/systemd/system/%{name}-sentinel.service.d/limit.conf
 
 %else
+%dir %attr(0750, redis, redis) %{_localstatedir}/run/%{pkg_name}
 %{_root_initddir}/%{name}
 %{_root_initddir}/%{name}-sentinel
 %config(noreplace) %{_root_sysconfdir}/security/limits.d/95-%{name}.conf
@@ -288,20 +302,20 @@ fi
 %dir %{_scl_scripts}/register.content%{_root_sysconfdir}/logrotate.d
      %{_scl_scripts}/register.content%{_root_sysconfdir}/logrotate.d/%{name}
 %dir                           %{_scl_scripts}/register.content%{_sysconfdir}
-     %attr(0644, redis, root)  %{_scl_scripts}/register.content%{_sysconfdir}/%{pkg_name}.conf
-     %attr(0644, redis, root)  %{_scl_scripts}/register.content%{_sysconfdir}/%{pkg_name}-sentinel.conf
+     %attr(0640, redis, root)  %{_scl_scripts}/register.content%{_sysconfdir}/%{pkg_name}.conf
+     %attr(0640, redis, root)  %{_scl_scripts}/register.content%{_sysconfdir}/%{pkg_name}-sentinel.conf
 %dir                           %{_scl_scripts}/register.content%{_localstatedir}
 %dir                           %{_scl_scripts}/register.content%{_localstatedir}/lib
-%dir %attr(0755, redis, redis) %{_scl_scripts}/register.content%{_localstatedir}/lib/%{pkg_name}
+%dir %attr(0750, redis, redis) %{_scl_scripts}/register.content%{_localstatedir}/lib/%{pkg_name}
 %dir                           %{_scl_scripts}/register.content%{_localstatedir}/log
-%dir %attr(0755, redis, redis) %{_scl_scripts}/register.content%{_localstatedir}/log/%{pkg_name}
+%dir %attr(0750, redis, redis) %{_scl_scripts}/register.content%{_localstatedir}/log/%{pkg_name}
 %dir                           %{_scl_scripts}/register.content%{_localstatedir}
-%dir %attr(0755, redis, redis) %{_scl_scripts}/register.content%{_localstatedir}/run/%{pkg_name}
 %if %{with_systemd}
 %dir %{_scl_scripts}/register.content%{_unitdir}
      %{_scl_scripts}/register.content%{_unitdir}/%{name}.service
      %{_scl_scripts}/register.content%{_unitdir}/%{name}-sentinel.service
 %else
+%dir %attr(0750, redis, redis) %{_scl_scripts}/register.content%{_localstatedir}/run/%{pkg_name}
 %dir %{_scl_scripts}/register.content%{_root_initddir}
      %{_scl_scripts}/register.content%{_root_initddir}/%{name}
      %{_scl_scripts}/register.content%{_root_initddir}/%{name}-sentinel
@@ -310,6 +324,13 @@ fi
 
 
 %changelog
+* Mon Sep 12 2016 Remi Collet <remi@fedoraproject.org> - 3.2.3-2
+- provide redis-check-rdb as a symlink to redis-server
+  add patch from https://github.com/antirez/redis/pull/3494
+- data and configuration should not be publicly readable #1374717
+- remove /var/run/redis with systemd
+- add man pages from https://github.com/antirez/redis/pull/3491 #1369821
+
 * Thu Sep  8 2016 Remi Collet <rcollet@redhat.com> - 3.2.3-1
 - rebase to 3.2.3 #1368102
 - fix redis-shutdown script
