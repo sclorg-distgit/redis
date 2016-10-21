@@ -15,6 +15,7 @@
 %global pkg_name          %{name}
 %global _root_sysconfdir  %{_sysconfdir}
 %global _root_initddir    %{_initddir}
+%global _root_libexecdir  %{_libexecdir}
 %endif
 
 # systemd >= 204 with additional service config
@@ -29,7 +30,7 @@
 
 Name:             %{scl_prefix}redis
 Version:          3.2.3
-Release:          2%{?dist}
+Release:          3%{?dist}
 Summary:          A persistent key-value database
 
 Group:            Applications/Databases
@@ -156,10 +157,10 @@ install -d -m 750 %{buildroot}%{_localstatedir}/log/%{pkg_name}
 
 %if %{with_systemd}
 # Install systemd unit
-sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;s:/etc:%{_sysconfdir}:' \
+sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;s:/etc:%{_sysconfdir}:;s:/usr/libexec:%{_libexecdir}:' \
     %{SOURCE3} >tmp_file
 install -p -D -m 644 tmp_file   %{buildroot}%{_unitdir}/%{name}.service
-sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;s:/etc:%{_sysconfdir}:' \
+sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;s:/etc:%{_sysconfdir}:;s:/usr/libexec:%{_libexecdir}:' \
     %{SOURCE6} >tmp_file
 install -p -D -m 644 tmp_file   %{buildroot}%{_unitdir}/%{name}-sentinel.service
 # this folder requires systemd >= 204
@@ -168,10 +169,10 @@ install -p -D -m 644 %{SOURCE8} %{buildroot}%{_root_sysconfdir}/systemd/system/%
 
 %else
 install -d -m 750 %{buildroot}%{_localstatedir}/run/%{pkg_name}
-sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;/redis/s:/etc:%{_sysconfdir}:' \
+sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;/redis/s:/etc:%{_sysconfdir}:;s:/usr/libexec:%{_libexecdir}:' \
     %{SOURCE2} >tmp_file
 install -p -D -m 755 tmp_file   %{buildroot}%{_root_initddir}/%{name}
-sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;/redis/s:/etc:%{_sysconfdir}:' \
+sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;/redis/s:/etc:%{_sysconfdir}:;s:/usr/libexec:%{_libexecdir}:' \
     %{SOURCE5} >tmp_file
 install -p -D -m 755 tmp_file   %{buildroot}%{_root_initddir}/%{name}-sentinel
 install -p -D -m 644 %{SOURCE9} %{buildroot}%{_root_sysconfdir}/security/limits.d/95-%{name}.conf
@@ -183,7 +184,7 @@ chmod 755 %{buildroot}%{_bindir}/%{pkg_name}-*
 # Install redis-shutdown
 sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;s:/etc:%{_sysconfdir}:' \
     %{SOURCE7} >tmp_file
-install -pDm755 tmp_file %{buildroot}%{_bindir}/%{pkg_name}-shutdown
+install -pDm755 tmp_file %{buildroot}%{_libexecdir}/%{pkg_name}-shutdown
 
 rm tmp_file
 
@@ -280,6 +281,7 @@ fi
 %dir %attr(0750, redis, redis) %{_localstatedir}/lib/%{pkg_name}
 %dir %attr(0750, redis, redis) %{_localstatedir}/log/%{pkg_name}
 %{_bindir}/%{pkg_name}-*
+%{_libexecdir}/%{pkg_name}-shutdown
 %{_mandir}/man1/%{pkg_name}*
 %{_mandir}/man5/%{pkg_name}*
 
@@ -324,6 +326,10 @@ fi
 
 
 %changelog
+* Wed Sep 14 2016 Remi Collet <remi@fedoraproject.org> - 3.2.3-3
+- move redis-shutdown to libexec #1375922
+- add LSB headers to init scripts #1369495
+
 * Mon Sep 12 2016 Remi Collet <remi@fedoraproject.org> - 3.2.3-2
 - provide redis-check-rdb as a symlink to redis-server
   add patch from https://github.com/antirez/redis/pull/3494
