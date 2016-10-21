@@ -28,7 +28,7 @@
 %global with_tests   %{?_with_tests:1}%{!?_with_tests:0}
 
 Name:             %{scl_prefix}redis
-Version:          3.2.1
+Version:          3.2.3
 Release:          1%{?dist}
 Summary:          A persistent key-value database
 
@@ -178,7 +178,7 @@ ln -sf %{pkg_name}-server %{buildroot}%{_bindir}/%{pkg_name}-sentinel
 
 # Install redis-shutdown
 sed -e 's:/usr/bin:%{_bindir}:;s:/var:%{_localstatedir}:;s:/etc:%{_sysconfdir}:' \
-    %{SOURCE5} >tmp_file
+    %{SOURCE7} >tmp_file
 install -pDm755 tmp_file %{buildroot}%{_bindir}/%{pkg_name}-shutdown
 
 rm tmp_file
@@ -310,6 +310,11 @@ fi
 
 
 %changelog
+* Thu Sep  8 2016 Remi Collet <rcollet@redhat.com> - 3.2.3-1
+- rebase to 3.2.3 #1368102
+- fix redis-shutdown script
+- init script doesn't support load/force-reload option #1369495
+
 * Wed Jul 27 2016 Remi Collet <rcollet@redhat.com> - 3.2.1-1
 - adapt for RHSCL 2.3.0
 
