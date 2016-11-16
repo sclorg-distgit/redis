@@ -29,8 +29,8 @@
 %global with_tests   %{?_with_tests:1}%{!?_with_tests:0}
 
 Name:             %{scl_prefix}redis
-Version:          3.2.3
-Release:          3%{?dist}
+Version:          3.2.4
+Release:          1%{?dist}
 Summary:          A persistent key-value database
 
 Group:            Applications/Databases
@@ -326,6 +326,10 @@ fi
 
 
 %changelog
+* Tue Oct 25 2016 Remi Collet <remi@fedoraproject.org> - 3.2.4-1
+- rebase to 3.2.4 #1379378
+- fix init scripts (reload|force-reload) #1369495
+
 * Wed Sep 14 2016 Remi Collet <remi@fedoraproject.org> - 3.2.3-3
 - move redis-shutdown to libexec #1375922
 - add LSB headers to init scripts #1369495
