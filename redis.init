@@ -87,6 +87,9 @@ case "$1" in
         rh_status_q || exit 0
         restart
         ;;
+    reload|force-reload)
+        exit 3
+        ;;
     *)
         echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart}"
         exit 2
